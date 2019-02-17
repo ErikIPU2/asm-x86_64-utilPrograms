@@ -1,12 +1,4 @@
 global _start
-section .data
-
-    strin1: db "tesfsdfsdfse", 10
-
-section .bss
-
-    char_buf: resb 1           ;buffer para print_char
-    int_buf: resb 1
 
 section .text
 
@@ -44,11 +36,16 @@ print_string:                   ;print_string((rdi) *string)
 
 print_char:                     ;print_char((rdi)char[1])
 
-    mov [char_buf], rdi         ;move o caractere para o buffer na memoria
-    mov rdi, char_buf           ;coloca o endereço do buffer em rdi
-    call print_string           ;chama a função print_string
-
-    ret
+    mov rax, rdi                ;move o valor em rdi para rax
+    mov rdi, rsp                ;salva o ponteiro da pilha em rdi
+    sub rsp, 2                  ;aloca o bytes na pilha, char + fim de string
+    dec rdi                     ;move o ponteiro para a proxima posição
+    mov byte[rdi], 0            ;coloca o valor de fim de string na pilha
+    dec rdi                     ;vai para a proxima posição
+    mov byte[rdi], al           ;coloca o caractere na pilha
+    call print_string           ;imprime a string no endereço de rdi
+    add rsp, 2                  ;restaura o ponteiro da pilha
+    ret                         
 
 print_newline:
 
@@ -57,12 +54,52 @@ print_newline:
 
     ret
 
-print_uint:
-    xor rax, rax
-    .loop:
+print_uint:                     ;print_uint((rdi) uint64_t)
 
-    .end:
+    mov rax, rdi                ;move o numero de rdi para rax
+    mov rdi, rsp                ;rdi ponteiro para o buffer
 
+
+    sub rsp, 21                 ;aloca 21 bytes na pilha, 21 = tamanho maximo de um numero de 64 bits + 1
+    mov r8, 10                  ;define a base como 10
+
+    dec rdi
+    mov byte[rdi], 0            ;coloca o valor 0 no topo da pilha, ele vai servir como final de String
+
+    .loop:                      ;loop serve para divisão
+        dec rdi                 ;vai para a proxima posição
+        xor rdx, rdx            ;zera rdx, rdx = resto da divisão
+        div r8                  ;divide rax pela base
+        add dl, '0'             ;converte o numero em dl(8-rdx) em um numero ascii
+        mov [rdi], dl           ;move o numero em dl para a pilha
+
+        test rax, rax           ;verifica se não existe mais nenhum numero para ser dividido
+        jnz .loop               ;repete o numero se tiver
+
+    call print_string           ;imprime a string em rdi
+    add rsp, 21                 ;reseta o valor da pilha
+    ret
+
+
+print_int:                      ;print_int((rdi) int64_t)
+    cmp rdi, 0                  ;compara o valor de rdi com 0
+
+    jge .print_uint             ;verifica se ele é maior ou igual a zero, se for imprime o numero
+                                ;caso não seja, imprime o sinal de menos e converte o valor para positivo
+    push rdi                    ;salva o valor de rdi
+    mov rdi, '-'                ;move o simbolo de menos para rdi
+    call print_char             ;imprime o caractere em rdi
+    pop rdi                     ;restaura o valor de rid
+    neg rdi                     ;passa rdi para positivo
+
+    .print_uint:            
+        call print_uint         ;imprime o valor em rdi
 
     ret
+
 _start:
+
+    mov rdi, 0
+    call exit
+
+
